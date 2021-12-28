@@ -11,8 +11,17 @@ namespace Wallpaper
         static void Main(string[] args)
         {
             _nativeWallpapaerPtr = IntPtr.Zero;
-            EnumWindows(EnumWindowProc,0);
             IntPtr progmanPtr = FindWindow("Progman", "Program Manager");
+            if (progmanPtr != IntPtr.Zero)
+            {
+                //win10
+                if (System.Environment.OSVersion.Version.Major <= 10)
+                {
+                    SendMessage(progmanPtr, 0x52c, IntPtr.Zero, IntPtr.Zero);
+                }
+            }
+            
+            EnumWindows(EnumWindowProc, 0);
             if (progmanPtr != IntPtr.Zero && _nativeWallpapaerPtr != IntPtr.Zero)
             {
                 var pu = FindWindow(null, "PSD2UGUI");
@@ -92,7 +101,8 @@ namespace Wallpaper
         static extern IntPtr SetParent(IntPtr child, IntPtr parent);
         [DllImport("user32.dll")]
         static extern long SetWindowLong(IntPtr hwnd, int nIndex, long dwNewLong);
-
+        [DllImport("user32.dll", EntryPoint = "SendMessageA")]
+        public static extern int SendMessage(IntPtr hwnd, int wMsg, IntPtr wParam, IntPtr lParam);
         #region ShowWindow 方法窗体状态的参数枚举
         /// <summary>
         /// 隐藏窗口并激活其他窗口

@@ -4,7 +4,7 @@
     <OutputType>WinExe</OutputType>
     <!-- <TargetFramework>.net5.0</TargetFramework> -->
 	  <TargetFramework>.netframework4.7.2</TargetFramework>
-	  <ApplicationIcon />
+	  <ApplicationIcon>wallpaper.ico</ApplicationIcon>
 	  <StartupObject />
   </PropertyGroup>
 

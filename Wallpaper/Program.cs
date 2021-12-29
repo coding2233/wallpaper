@@ -1,51 +1,105 @@
 using System;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Windows.Forms;
 
 namespace Wallpaper
 {
     class Program
     {
         private static IntPtr _nativeWallpapaerPtr;
+        private static Process _videoProcess;
+        [STAThread]
         static void Main(string[] args)
         {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            var notifyIcon = new NotifyIcon();
+            notifyIcon.Text = "Wallpaper";
+            using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("wallpaper.ico"))
+            {
+                notifyIcon.Icon = new Icon(stream);
+            }
+            notifyIcon.Visible = true;
+            //菜单
+            ContextMenuStrip contextMenuStrip = new ContextMenuStrip();
+            ToolStripItem item = contextMenuStrip.Items.Add("Exit");
+            item.Click += (sender, e) =>
+            {
+                notifyIcon?.Dispose();
+                notifyIcon = null;
+                SetWallpaperBack();
+            };
+            notifyIcon.ContextMenuStrip = contextMenuStrip;
+            Console.WriteLine("Hello World !");
+            SetWallpaper();
+            Application.Run();
+
+
+        }
+
+        private static void SetWallpaper()
+        {
+            string videoName = $"wallpaper_ffplay_video.mp4";
+            try
+            {
+                _videoProcess = new Process();
+                ProcessStartInfo startInfo = new ProcessStartInfo();
+                startInfo.FileName = "ffplay.exe";
+                startInfo.Arguments = $"{videoName} -noborder -an -x 1920 -y 1080  -loop 0";
+                startInfo.UseShellExecute = false;
+                startInfo.CreateNoWindow = true;
+                _videoProcess.StartInfo = startInfo;
+                _videoProcess.Start();
+                Thread.Sleep(2000);
+                ShowWindow(_videoProcess.MainWindowHandle, SW_SHOWMINIMIZED);
+            }
+            catch (Exception e)
+            {
+                SetWallpaperBack();
+                Console.WriteLine(e);
+            }
             _nativeWallpapaerPtr = IntPtr.Zero;
             IntPtr progmanPtr = FindWindow("Progman", "Program Manager");
             if (progmanPtr != IntPtr.Zero)
             {
                 //win10
-                if (System.Environment.OSVersion.Version.Major <= 10)
+                SendMessage(progmanPtr, 0x52c, IntPtr.Zero, IntPtr.Zero);
+                EnumWindows(EnumWindowProc, 0);
+                if (_nativeWallpapaerPtr != IntPtr.Zero)
                 {
-                    SendMessage(progmanPtr, 0x52c, IntPtr.Zero, IntPtr.Zero);
+                    SetParent(_videoProcess.MainWindowHandle, progmanPtr);
+                    ShowWindow(_videoProcess.MainWindowHandle, SW_SHOWMAXIMIZED);
+                    ShowWindow(_nativeWallpapaerPtr, SW_HIDE);
+                    //ShowWindow(_videoProcess.MainWindowHandle, SW_SHOW);
+                }
+                else
+                {
+                    SetWallpaperBack();
                 }
             }
-            
-            EnumWindows(EnumWindowProc, 0);
-            if (progmanPtr != IntPtr.Zero && _nativeWallpapaerPtr != IntPtr.Zero)
-            {
-                var pu = FindWindow(null, "PSD2UGUI");
-
-                if (pu != IntPtr.Zero)
-                {
-                    IntPtr oldParent = GetParent(pu);
-                    SetParent(pu, progmanPtr);
-                    SetWindowLong(pu, GWL_STYLE, WS_POPUP);
-                    ShowWindow(pu, SW_SHOWMAXIMIZED);
-                    ShowWindow(_nativeWallpapaerPtr,SW_HIDE);
-                    Console.WriteLine("Set wallpaper");
-                    Thread.Sleep(10000);
-                    SetParent(pu, oldParent);
-                    ShowWindow(_nativeWallpapaerPtr, SW_SHOW);
-                    Thread.Sleep(1000);
-                    Console.WriteLine("Clear wallpaper");
-                }
-            }
-            Console.WriteLine("Hello World !");
-            //while (true)
-            //{ }
+          
         }
- 
+
+        private static void SetWallpaperBack()
+        {
+            if (_nativeWallpapaerPtr != IntPtr.Zero)
+            {
+                ShowWindow(_nativeWallpapaerPtr, SW_SHOW);
+            }
+
+            if (_videoProcess != null)
+            {
+                _videoProcess.Kill();
+                _videoProcess?.Dispose();
+                _videoProcess = null;
+            }
+        }
 
         private static bool EnumWindowProc(IntPtr hwnd, long lparam)
         {

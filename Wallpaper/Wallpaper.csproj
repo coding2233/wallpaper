@@ -1,9 +1,39 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <!-- <TargetFramework>.net5.0</TargetFramework> -->
 	  <TargetFramework>.netframework4.7.2</TargetFramework>
+	  <ApplicationIcon />
+	  <StartupObject />
   </PropertyGroup>
 
+  <ItemGroup>
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+	<ItemGroup>
+	    <EmbeddedResource Include="wallpaper.ico" LogicalName="wallpaper.ico" />
+	</ItemGroup>
+	
+  <ItemGroup>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+
+
+	<!--<ItemGroup>
+		<Content Include="$(RepositoryRootDirectory)/tools/*.*" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>-->
+	
 </Project>

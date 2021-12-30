@@ -190,6 +190,7 @@ namespace Wallpaper
                         using (var vfc =new VideoFrameConverter(sourceSize, sourcePixelFormat, destinationSize, destinationPixelFormat))
                         {
                             var frameNumber = 0;
+                            int waitTime = 1000 / 60;
                             while (vsd.TryDecodeNextFrame(out var frame))
                             {
                                 var convertedFrame = vfc.Convert(frame);
@@ -212,7 +213,7 @@ namespace Wallpaper
 
                                 onBitmapCallback(bitmap);
 
-                       
+                                Thread.Sleep(waitTime);
                                 Console.WriteLine($"frame: {frameNumber}");
                                 frameNumber++;
                             }

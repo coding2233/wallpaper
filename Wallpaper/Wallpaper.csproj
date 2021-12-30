@@ -40,7 +40,7 @@
 
 	<ItemGroup>
 		<!--<Content Include="../tools/ffplay.exe" CopyToOutputDirectory="PreserveNewest" />-->
-		<Content Include="../FFmpeg/bin/x64/*.dll" CopyToOutputDirectory="PreserveNewest" />
+		<Content Include="../FFmpeg/lib/x64/*.dll" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 	
 </Project>

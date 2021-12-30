@@ -1,6 +1,7 @@
 using FFmpeg.AutoGen;
 using FFmpeg.AutoGen.Example;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -77,15 +78,33 @@ namespace Wallpaper
                 EnumWindows(EnumWindowProc, 0);
                 if (_nativeWallpapaerPtr != IntPtr.Zero)
                 {
-                    Form1 form1 = new Form1();
+                    List<Form1> forms = new List<Form1>();
+                    foreach (var item in Screen.AllScreens)
+                    {
+                        Form1 form1 = new Form1();
+
+                        form1.Bounds = item.Bounds;
+                        //form1.Location = item.Bounds.Location;
+                        //form1.Size = item.Bounds.Size;
+                        forms.Add(form1);
+                    }
                     //ffmpeg
                     ffmpeg.RootPath = "./";
-                    DecodeAllFramesToImages("./wallpaper_ffplay_video.mp4",AVHWDeviceType.AV_HWDEVICE_TYPE_NONE, (bitmap) => {
-                        form1.SetImage(bitmap);
+                    //http://ivi.bupt.edu.cn/hls/cctv6hd.m3u8 
+                    //./wallpaper_ffplay_video.mp4
+                    DecodeAllFramesToImages("wallpaper_ffplay_video.mp4", AVHWDeviceType.AV_HWDEVICE_TYPE_NONE, (bitmap) => {
+                        foreach (var item in forms)
+                        {
+                            item.SetImage(bitmap);
+                        }
                     },true);
 
-                    SetParent(form1.Handle, progmanPtr);
-                    form1.Show();
+                    foreach (var form1 in forms)
+                    {
+                      
+                        SetParent(form1.Handle, progmanPtr);
+                        form1.Show();
+                    }
                     //ShowWindow(_videoProcess.MainWindowHandle, SW_SHOWMAXIMIZED);
                     ShowWindow(_nativeWallpapaerPtr, SW_HIDE);
                     //ShowWindow(_videoProcess.MainWindowHandle, SW_SHOW);
@@ -150,6 +169,7 @@ namespace Wallpaper
         {
             System.Threading.Tasks.Task.Run(() =>
             {
+                Bitmap cacheBitmap = null;
                 while (true)
                 {
                     // decode all frames from url, please not it might local resorce, e.g. string url = "../../sample_mpeg4.mp4";
@@ -179,12 +199,25 @@ namespace Wallpaper
                                     PixelFormat.Format24bppRgb,
                                     (IntPtr)convertedFrame.data[0]);
 
+                                if (cacheBitmap == null)
+                                {
+                                    string cacheName = ".cacheBitmap";
+                                    if (File.Exists(cacheName))
+                                    {
+                                        File.Delete(cacheName);
+                                    }
+                                    bitmap.Save(cacheName, ImageFormat.Jpeg);
+                                    cacheBitmap = new Bitmap(cacheName);
+                                }
+
                                 onBitmapCallback(bitmap);
 
+                       
                                 Console.WriteLine($"frame: {frameNumber}");
                                 frameNumber++;
                             }
-                            onBitmapCallback(null);
+
+                            onBitmapCallback(cacheBitmap);
                         }
                     }
                     if (!loop)

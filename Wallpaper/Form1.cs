@@ -16,9 +16,9 @@ namespace Wallpaper
         public Form1()
         {
             InitializeComponent();
-            var screenBounds = Screen.PrimaryScreen.Bounds;
-            this.Size = screenBounds.Size;
-            this.WindowState = FormWindowState.Maximized;
+            //var screenBounds = Screen.PrimaryScreen.Bounds;
+            //this.Size = screenBounds.Size;
+            //this.WindowState = FormWindowState.Maximized;
             this.FormBorderStyle = FormBorderStyle.None;
         }
 

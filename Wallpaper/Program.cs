@@ -42,10 +42,7 @@ namespace Wallpaper
             };
             notifyIcon.ContextMenuStrip = contextMenuStrip;
             Console.WriteLine("Hello World !");
-            //ffmpeg
-            ffmpeg.RootPath = "./";
-            DecodeAllFramesToImages(AVHWDeviceType.AV_HWDEVICE_TYPE_NONE);
-            //SetWallpaper();
+            SetWallpaper();
             Application.Run();
 
 
@@ -53,25 +50,25 @@ namespace Wallpaper
 
         private static void SetWallpaper()
         {
-            string videoName = $"wallpaper_ffplay_video.mp4";
-            try
-            {
-                _videoProcess = new Process();
-                ProcessStartInfo startInfo = new ProcessStartInfo();
-                startInfo.FileName = "ffplay.exe";
-                startInfo.Arguments = $"{videoName} -noborder -an -x 1920 -y 1080  -loop 0";
-                startInfo.UseShellExecute = false;
-                startInfo.CreateNoWindow = true;
-                _videoProcess.StartInfo = startInfo;
-                _videoProcess.Start();
-                Thread.Sleep(2000);
-                ShowWindow(_videoProcess.MainWindowHandle, SW_SHOWMINIMIZED);
-            }
-            catch (Exception e)
-            {
-                SetWallpaperBack();
-                Console.WriteLine(e);
-            }
+            //string videoName = $"wallpaper_ffplay_video.mp4";
+            //try
+            //{
+            //    _videoProcess = new Process();
+            //    ProcessStartInfo startInfo = new ProcessStartInfo();
+            //    startInfo.FileName = "ffplay.exe";
+            //    startInfo.Arguments = $"{videoName} -noborder -an -x 1920 -y 1080  -loop 0";
+            //    startInfo.UseShellExecute = false;
+            //    startInfo.CreateNoWindow = true;
+            //    _videoProcess.StartInfo = startInfo;
+            //    _videoProcess.Start();
+            //    Thread.Sleep(2000);
+            //    ShowWindow(_videoProcess.MainWindowHandle, SW_SHOWMINIMIZED);
+            //}
+            //catch (Exception e)
+            //{
+            //    SetWallpaperBack();
+            //    Console.WriteLine(e);
+            //}
             _nativeWallpapaerPtr = IntPtr.Zero;
             IntPtr progmanPtr = FindWindow("Progman", "Program Manager");
             if (progmanPtr != IntPtr.Zero)
@@ -81,8 +78,16 @@ namespace Wallpaper
                 EnumWindows(EnumWindowProc, 0);
                 if (_nativeWallpapaerPtr != IntPtr.Zero)
                 {
-                    SetParent(_videoProcess.MainWindowHandle, progmanPtr);
-                    ShowWindow(_videoProcess.MainWindowHandle, SW_SHOWMAXIMIZED);
+                    Form1 form1 = new Form1();
+                    //ffmpeg
+                    ffmpeg.RootPath = "./";
+                    DecodeAllFramesToImages(AVHWDeviceType.AV_HWDEVICE_TYPE_NONE, (bitmap) => {
+                        form1.SetImage(bitmap);
+                    },true);
+
+                    SetParent(form1.Handle, progmanPtr);
+                    form1.Show();
+                    //ShowWindow(_videoProcess.MainWindowHandle, SW_SHOWMAXIMIZED);
                     ShowWindow(_nativeWallpapaerPtr, SW_HIDE);
                     //ShowWindow(_videoProcess.MainWindowHandle, SW_SHOW);
                 }
@@ -142,42 +147,55 @@ namespace Wallpaper
             return true;
         }
 
-        private static unsafe void DecodeAllFramesToImages(AVHWDeviceType HWDevice)
+        private static unsafe void DecodeAllFramesToImages(AVHWDeviceType HWDevice,Action<Bitmap> onBitmapCallback,bool loop=false)
         {
-            // decode all frames from url, please not it might local resorce, e.g. string url = "../../sample_mpeg4.mp4";
-            var url = "http://clips.vorwaerts-gmbh.de/big_buck_bunny.mp4"; // be advised this file holds 1440 frames
-            using (var vsd = new VideoStreamDecoder(url, HWDevice))
+            System.Threading.Tasks.Task.Run(() =>
             {
-                Console.WriteLine($"codec name: {vsd.CodecName}");
-
-                var info = vsd.GetContextInfo();
-                info.ToList().ForEach(x => Console.WriteLine($"{x.Key} = {x.Value}"));
-
-                var sourceSize = vsd.FrameSize;
-                var sourcePixelFormat = vsd.PixelFormat;
-                var destinationSize = sourceSize;
-                var destinationPixelFormat = AVPixelFormat.AV_PIX_FMT_BGR24;
-                using (var vfc =
-                    new VideoFrameConverter(sourceSize, sourcePixelFormat, destinationSize, destinationPixelFormat))
+                // decode all frames from url, please not it might local resorce, e.g. string url = "../../sample_mpeg4.mp4";
+                var url = "http://clips.vorwaerts-gmbh.de/big_buck_bunny.mp4"; // be advised this file holds 1440 frames
+                using (var vsd = new VideoStreamDecoder("./wallpaper_ffplay_video.mp4", HWDevice))//""
                 {
-                    var frameNumber = 0;
+                    Console.WriteLine($"codec name: {vsd.CodecName}");
 
-                    while (vsd.TryDecodeNextFrame(out var frame))
+                    var info = vsd.GetContextInfo();
+                    info.ToList().ForEach(x => Console.WriteLine($"{x.Key} = {x.Value}"));
+
+                    var sourceSize = vsd.FrameSize;
+                    var sourcePixelFormat = vsd.PixelFormat;
+                    var screenBounds = Screen.PrimaryScreen.Bounds;
+                    var destinationSize = screenBounds.Size; // sourceSize;
+                    var destinationPixelFormat = AVPixelFormat.AV_PIX_FMT_BGR24;
+                    using (var vfc =
+                        new VideoFrameConverter(sourceSize, sourcePixelFormat, destinationSize, destinationPixelFormat))
                     {
-                        var convertedFrame = vfc.Convert(frame);
+                        var frameNumber = 0;
 
-                        using (var bitmap = new Bitmap(convertedFrame.width,
-                            convertedFrame.height,
-                            convertedFrame.linesize[0],
-                            PixelFormat.Format24bppRgb,
-                            (IntPtr)convertedFrame.data[0]))
-                            bitmap.Save($"frame.{frameNumber:D8}.jpg", ImageFormat.Jpeg);
+                        while (vsd.TryDecodeNextFrame(out var frame))
+                        {
+                            var convertedFrame = vfc.Convert(frame);
+                            var bitmap = new Bitmap(convertedFrame.width,
+                                convertedFrame.height,
+                                convertedFrame.linesize[0],
+                                PixelFormat.Format24bppRgb,
+                                (IntPtr)convertedFrame.data[0]);
+                            onBitmapCallback(bitmap);
 
-                        Console.WriteLine($"frame: {frameNumber}");
-                        frameNumber++;
+                            //using ()
+                            //{
+                            //}
+                            //bitmap.Save($"frame.{frameNumber:D8}.jpg", ImageFormat.Jpeg);
+
+                            Console.WriteLine($"frame: {frameNumber}");
+                            frameNumber++;
+                        }
                     }
                 }
-            }
+
+                if (loop)
+                {
+                    DecodeAllFramesToImages(HWDevice, onBitmapCallback,loop);
+                }
+            });
         }
 
   

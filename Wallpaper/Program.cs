@@ -1,7 +1,11 @@
+using FFmpeg.AutoGen;
+using FFmpeg.AutoGen.Example;
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -34,10 +38,14 @@ namespace Wallpaper
                 notifyIcon?.Dispose();
                 notifyIcon = null;
                 SetWallpaperBack();
+                Application.Exit();
             };
             notifyIcon.ContextMenuStrip = contextMenuStrip;
             Console.WriteLine("Hello World !");
-            SetWallpaper();
+            //ffmpeg
+            ffmpeg.RootPath = "./";
+            DecodeAllFramesToImages(AVHWDeviceType.AV_HWDEVICE_TYPE_NONE);
+            //SetWallpaper();
             Application.Run();
 
 
@@ -134,6 +142,45 @@ namespace Wallpaper
             return true;
         }
 
+        private static unsafe void DecodeAllFramesToImages(AVHWDeviceType HWDevice)
+        {
+            // decode all frames from url, please not it might local resorce, e.g. string url = "../../sample_mpeg4.mp4";
+            var url = "http://clips.vorwaerts-gmbh.de/big_buck_bunny.mp4"; // be advised this file holds 1440 frames
+            using (var vsd = new VideoStreamDecoder(url, HWDevice))
+            {
+                Console.WriteLine($"codec name: {vsd.CodecName}");
+
+                var info = vsd.GetContextInfo();
+                info.ToList().ForEach(x => Console.WriteLine($"{x.Key} = {x.Value}"));
+
+                var sourceSize = vsd.FrameSize;
+                var sourcePixelFormat = vsd.PixelFormat;
+                var destinationSize = sourceSize;
+                var destinationPixelFormat = AVPixelFormat.AV_PIX_FMT_BGR24;
+                using (var vfc =
+                    new VideoFrameConverter(sourceSize, sourcePixelFormat, destinationSize, destinationPixelFormat))
+                {
+                    var frameNumber = 0;
+
+                    while (vsd.TryDecodeNextFrame(out var frame))
+                    {
+                        var convertedFrame = vfc.Convert(frame);
+
+                        using (var bitmap = new Bitmap(convertedFrame.width,
+                            convertedFrame.height,
+                            convertedFrame.linesize[0],
+                            PixelFormat.Format24bppRgb,
+                            (IntPtr)convertedFrame.data[0]))
+                            bitmap.Save($"frame.{frameNumber:D8}.jpg", ImageFormat.Jpeg);
+
+                        Console.WriteLine($"frame: {frameNumber}");
+                        frameNumber++;
+                    }
+                }
+            }
+        }
+
+  
 
         #region user32.dll
         delegate bool WindowEnumProc(IntPtr hwnd, long lparam);

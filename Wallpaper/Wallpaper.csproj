@@ -2,9 +2,11 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <!-- <TargetFramework>.net5.0</TargetFramework> -->
+	  <LangVersion>9.0</LangVersion>
+	  <!-- <TargetFramework>.net5.0</TargetFramework> -->
 	  <TargetFramework>.netframework4.7.2</TargetFramework>
 	  <ApplicationIcon>wallpaper.ico</ApplicationIcon>
+	  <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 	  <StartupObject />
   </PropertyGroup>
 
@@ -24,6 +26,10 @@
     </Compile>
   </ItemGroup>
 
+	<ItemGroup>
+		<ProjectReference Include="..\FFmpeg.AutoGen\FFmpeg.AutoGen.csproj" />
+	</ItemGroup>
+	
   <ItemGroup>
     <EmbeddedResource Update="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -32,8 +38,9 @@
   </ItemGroup>
 
 
-	<!--<ItemGroup>
-		<Content Include="$(RepositoryRootDirectory)/tools/*.*" CopyToOutputDirectory="PreserveNewest" />
-	</ItemGroup>-->
+	<ItemGroup>
+		<Content Include="../tools/ffplay.exe" CopyToOutputDirectory="PreserveNewest" />
+		<Content Include="../FFmpeg/bin/x64/*.dll" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
 	
 </Project>

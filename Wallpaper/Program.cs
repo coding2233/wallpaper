@@ -18,7 +18,69 @@ namespace Wallpaper
     class Program
     {
         private static IntPtr _nativeWallpapaerPtr;
-        private static Process _videoProcess;
+
+        #region path
+        private static string VideoAddressConfig
+        {
+            get
+            {
+                string userPath = Environment.GetEnvironmentVariable("USERPROFILE");
+                if (string.IsNullOrEmpty(userPath))
+                {
+                    userPath = "./";
+                }
+                userPath = Path.Combine(userPath, ".wallpaper");
+                if (!Directory.Exists(userPath))
+                {
+                    Directory.CreateDirectory(userPath);
+                }
+                userPath = Path.Combine(userPath, ".wallpaper.address");
+                return userPath;
+            }
+        }
+
+        private static string WallpaperAddress
+        {
+            get
+            {
+                if (File.Exists(VideoAddressConfig))
+                {
+                    string address = File.ReadAllText(VideoAddressConfig);
+                    if (!string.IsNullOrEmpty(address))
+                    {
+                        if (File.Exists(address))
+                        {
+                            return address;
+                        }
+                    }
+                }
+                return null;
+            }
+            set
+            {
+                if (string.IsNullOrEmpty(value))
+                {
+                    if (File.Exists(VideoAddressConfig))
+                    {
+                        File.Delete(VideoAddressConfig);
+                    }
+                }
+                else
+                {
+                    if (File.Exists(VideoAddressConfig))
+                    {
+                        File.Delete(VideoAddressConfig);
+                    }
+                    if (File.Exists(value))
+                    {
+                        File.WriteAllText(VideoAddressConfig, value);
+                    }
+                }
+            }
+        }
+
+        #endregion
+
         [STAThread]
         static void Main(string[] args)
         {
@@ -33,42 +95,52 @@ namespace Wallpaper
             notifyIcon.Visible = true;
             //菜单
             ContextMenuStrip contextMenuStrip = new ContextMenuStrip();
-            ToolStripItem item = contextMenuStrip.Items.Add("Exit");
-            item.Click += (sender, e) =>
+            AddNotifyIconItem(contextMenuStrip, "Select wallpaper", (sender, e) =>
+            {
+                OpenFileDialog openFileDialog = new OpenFileDialog();
+                openFileDialog.Filter = "Video files|*.*";
+                openFileDialog.FilterIndex = 1;
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    string oldWallpaperAddress = WallpaperAddress;
+                    WallpaperAddress = openFileDialog.FileName;
+                    if (string.IsNullOrEmpty(oldWallpaperAddress))
+                    {
+                        SetWallpaper(WallpaperAddress);
+                        notifyIcon.ShowBalloonTip(500, "Update wallpap", "Wallpaper setup successfully.", ToolTipIcon.Info);
+                    }
+                    else
+                    {
+                        notifyIcon.ShowBalloonTip(1000, "Update wallpap", "Exit and restart the application.",ToolTipIcon.Info);
+                    }
+                }
+            });
+            AddNotifyIconItem(contextMenuStrip, "Exit", (sender, e) =>
             {
                 notifyIcon?.Dispose();
                 notifyIcon = null;
                 SetWallpaperBack();
                 Application.Exit();
-            };
+            });
             notifyIcon.ContextMenuStrip = contextMenuStrip;
             Console.WriteLine("Hello World !");
-            SetWallpaper();
+            //SetWallpaper();
+            if (!string.IsNullOrEmpty(WallpaperAddress))
+            {
+                notifyIcon.Text += $"\n{Path.GetFileName(WallpaperAddress)}";
+                SetWallpaper(WallpaperAddress);
+            }
+            else
+            {
+                notifyIcon.ShowBalloonTip(2000, "Select video", "Please select a video file as wallpaper.", ToolTipIcon.Info);
+            }
+
             Application.Run();
 
 
         }
-        private static void SetWallpaper()
+        private static void SetWallpaper(string wallpaperAddress)
         {
-            //string videoName = $"wallpaper_ffplay_video.mp4";
-            //try
-            //{
-            //    _videoProcess = new Process();
-            //    ProcessStartInfo startInfo = new ProcessStartInfo();
-            //    startInfo.FileName = "ffplay.exe";
-            //    startInfo.Arguments = $"{videoName} -noborder -an -x 1920 -y 1080  -loop 0";
-            //    startInfo.UseShellExecute = false;
-            //    startInfo.CreateNoWindow = true;
-            //    _videoProcess.StartInfo = startInfo;
-            //    _videoProcess.Start();
-            //    Thread.Sleep(2000);
-            //    ShowWindow(_videoProcess.MainWindowHandle, SW_SHOWMINIMIZED);
-            //}
-            //catch (Exception e)
-            //{
-            //    SetWallpaperBack();
-            //    Console.WriteLine(e);
-            //}
             _nativeWallpapaerPtr = IntPtr.Zero;
             IntPtr progmanPtr = FindWindow("Progman", "Program Manager");
             if (progmanPtr != IntPtr.Zero)
@@ -92,7 +164,7 @@ namespace Wallpaper
                     ffmpeg.RootPath = "./";
                     //http://ivi.bupt.edu.cn/hls/cctv6hd.m3u8 
                     //./wallpaper_ffplay_video.mp4
-                    DecodeAllFramesToImages("wallpaper_ffplay_video.mp4", AVHWDeviceType.AV_HWDEVICE_TYPE_NONE, (bitmap) => {
+                    DecodeAllFramesToImages(wallpaperAddress, AVHWDeviceType.AV_HWDEVICE_TYPE_NONE, (bitmap) => {
                         foreach (var item in forms)
                         {
                             item.SetImage(bitmap);
@@ -122,13 +194,6 @@ namespace Wallpaper
             if (_nativeWallpapaerPtr != IntPtr.Zero)
             {
                 ShowWindow(_nativeWallpapaerPtr, SW_SHOW);
-            }
-
-            if (_videoProcess != null)
-            {
-                _videoProcess.Kill();
-                _videoProcess?.Dispose();
-                _videoProcess = null;
             }
         }
 
@@ -229,7 +294,14 @@ namespace Wallpaper
             });
         }
 
-  
+        private static void AddNotifyIconItem(ContextMenuStrip contextMenuStrip, string text, EventHandler eventHandler)
+        {
+            var item = contextMenuStrip.Items.Add(text);
+            item.Click += eventHandler;
+        }
+
+
+       
 
         #region user32.dll
         delegate bool WindowEnumProc(IntPtr hwnd, long lparam);

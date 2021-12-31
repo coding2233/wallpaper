@@ -8,6 +8,8 @@
 	  <ApplicationIcon>wallpaper.ico</ApplicationIcon>
 	  <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 	  <StartupObject />
+	  <SignAssembly>false</SignAssembly>
+	  <Description>轻量级壁纸软件</Description>
   </PropertyGroup>
 
   <ItemGroup>

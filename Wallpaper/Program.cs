@@ -95,6 +95,27 @@ namespace Wallpaper
             notifyIcon.Visible = true;
             //菜单
             ContextMenuStrip contextMenuStrip = new ContextMenuStrip();
+            var asItem = AddNotifyIconItem(contextMenuStrip, "Auto startup", (sender, e) => {
+                string path = Application.ExecutablePath;
+                Microsoft.Win32.RegistryKey rk = Microsoft.Win32.Registry.CurrentUser;
+                try
+                {
+                    var tsmi = sender as ToolStripMenuItem;
+                    string softWareKey = "Wallpaper";
+                    Microsoft.Win32.RegistryKey rk2 = rk.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+                    //var rk2Object = rk2.GetValue(softWareKey);
+                    //bool autoStart = (rk2Object == null || !rk2Object.ToString().Equals(path));
+                    rk2.SetValue(softWareKey, path);
+                    //rk2.DeleteValue("Wallpaper", false);
+                    rk2.Close();
+                    rk.Close();
+                    notifyIcon.ShowBalloonTip(500, "Auto startup", "Startup setup succeeded.", ToolTipIcon.Info);
+                }
+                catch (Exception ee)
+                {
+                    notifyIcon.ShowBalloonTip(500, "Auto startup", $"Startup Settings failed. Procedure. {ee}", ToolTipIcon.Error);
+                }
+            });
             AddNotifyIconItem(contextMenuStrip, "Select wallpaper", (sender, e) =>
             {
                 OpenFileDialog openFileDialog = new OpenFileDialog();
@@ -294,10 +315,12 @@ namespace Wallpaper
             });
         }
 
-        private static void AddNotifyIconItem(ContextMenuStrip contextMenuStrip, string text, EventHandler eventHandler)
+        private static ToolStripItem AddNotifyIconItem(ContextMenuStrip contextMenuStrip, string text, EventHandler eventHandler)
         {
             var item = contextMenuStrip.Items.Add(text);
             item.Click += eventHandler;
+            //(item as ToolStripMenuItem).Checked = true;
+            return item;
         }
 
 

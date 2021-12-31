@@ -1,0 +1,53 @@
+name: .NET
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 5.0.x
+    - name: Restore dependencies
+      run: dotnet restore
+    - name: Build
+      run: |
+        dotnet build --no-restore -c Release
+        dir ./
+        dir Wallpaper/bin/Release/.netframework4.7.2/
+    - name: Expose as artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: Wallpaper-Windows
+        path: Wallpaper/bin/Release/.netframework4.7.2
+  push-itch:
+    runs-on: ubuntu-latest
+    needs: [build-windows]
+    steps:
+    - name: Download an artifact 
+      uses: actions/download-artifact@v2
+      with:
+        name: Wallpaper-Windows
+        path: wallpaper/
+   
+    - name: Check files
+      run: |
+        ls -alh ./
+        ls -alh wallpaper/
+        
+    - name: itch-butler-windows
+      uses: josephbmanley/butler-publish-itchio-action@master
+      env:
+        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
+        CHANNEL: windows
+        ITCH_GAME: Wallpaper
+        ITCH_USER: wanderer-x
+        PACKAGE: wallpaper/
+

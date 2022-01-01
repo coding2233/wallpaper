@@ -20,6 +20,25 @@ namespace Wallpaper
         private static IntPtr _nativeWallpapaerPtr;
 
         #region path
+
+        private static string UserPath
+        {
+            get
+            {
+                string userPath = Environment.GetEnvironmentVariable("USERPROFILE");
+                if (string.IsNullOrEmpty(userPath))
+                {
+                    userPath = "./";
+                }
+                userPath = Path.Combine(userPath, ".wallpaper");
+                if (!Directory.Exists(userPath))
+                {
+                    Directory.CreateDirectory(userPath);
+                }
+                return userPath;
+            }
+        }
+
         private static string VideoAddressConfig
         {
             get
@@ -79,6 +98,37 @@ namespace Wallpaper
             }
         }
 
+
+        private static bool AutoStartup
+        {
+            get
+            {
+                Microsoft.Win32.RegistryKey rk2 = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+                return rk2.GetValue("Wallpaper") != null;
+            }
+            set
+            {
+                string path = Application.ExecutablePath;
+                Microsoft.Win32.RegistryKey rk = Microsoft.Win32.Registry.CurrentUser;
+                string softWareKey = "Wallpaper";
+                Microsoft.Win32.RegistryKey rk2 = rk.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+                //var rk2Object = rk2.GetValue(softWareKey);
+                //bool autoStart = (rk2Object == null || !rk2Object.ToString().Equals(path));
+                if (value)
+                {
+                    rk2.SetValue(softWareKey, path);
+                }
+                else
+                {
+                    if(rk2.GetValue(softWareKey)!=null)
+                        rk2.DeleteValue(softWareKey);
+                }
+                //rk2.DeleteValue("Wallpaper", false);
+                rk2.Close();
+                rk.Close();
+            }
+        }
+
         #endregion
 
         [STAThread]
@@ -101,21 +151,24 @@ namespace Wallpaper
                 try
                 {
                     var tsmi = sender as ToolStripMenuItem;
-                    string softWareKey = "Wallpaper";
-                    Microsoft.Win32.RegistryKey rk2 = rk.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-                    //var rk2Object = rk2.GetValue(softWareKey);
-                    //bool autoStart = (rk2Object == null || !rk2Object.ToString().Equals(path));
-                    rk2.SetValue(softWareKey, path);
-                    //rk2.DeleteValue("Wallpaper", false);
-                    rk2.Close();
-                    rk.Close();
-                    notifyIcon.ShowBalloonTip(500, "Auto startup", "Startup setup succeeded.", ToolTipIcon.Info);
+                    bool oldAutoStartup = tsmi.Checked;
+                    AutoStartup = !oldAutoStartup;
+                    if (AutoStartup != oldAutoStartup)
+                    {
+                        notifyIcon.ShowBalloonTip(500, "Auto startup", oldAutoStartup? "Turn off autostart" : "Startup setup succeeded.", ToolTipIcon.Info);
+                        tsmi.Checked = !oldAutoStartup;
+                    }
+                    else
+                    {
+                        notifyIcon.ShowBalloonTip(500, "Auto startup", $"Startup Settings failed. Procedure.", ToolTipIcon.Error);
+                    }
                 }
                 catch (Exception ee)
                 {
                     notifyIcon.ShowBalloonTip(500, "Auto startup", $"Startup Settings failed. Procedure. {ee}", ToolTipIcon.Error);
                 }
             });
+            (asItem as ToolStripMenuItem).Checked = AutoStartup;
             AddNotifyIconItem(contextMenuStrip, "Select wallpaper", (sender, e) =>
             {
                 OpenFileDialog openFileDialog = new OpenFileDialog();
@@ -157,8 +210,6 @@ namespace Wallpaper
             }
 
             Application.Run();
-
-
         }
         private static void SetWallpaper(string wallpaperAddress)
         {
@@ -171,6 +222,7 @@ namespace Wallpaper
                 EnumWindows(EnumWindowProc, 0);
                 if (_nativeWallpapaerPtr != IntPtr.Zero)
                 {
+                    bool isShowForms = false;
                     List<Form1> forms = new List<Form1>();
                     foreach (var item in Screen.AllScreens)
                     {
@@ -182,25 +234,27 @@ namespace Wallpaper
                         forms.Add(form1);
                     }
                     //ffmpeg
-                    ffmpeg.RootPath = "./";
+                    ffmpeg.RootPath = Path.GetDirectoryName(Application.ExecutablePath);
                     //http://ivi.bupt.edu.cn/hls/cctv6hd.m3u8 
                     //./wallpaper_ffplay_video.mp4
                     DecodeAllFramesToImages(wallpaperAddress, AVHWDeviceType.AV_HWDEVICE_TYPE_NONE, (bitmap) => {
                         foreach (var item in forms)
                         {
                             item.SetImage(bitmap);
+                            isShowForms = true;
                         }
                     },true);
 
+                    while (!isShowForms)
+                    {
+                        Thread.Sleep(100);
+                    }
                     foreach (var form1 in forms)
                     {
-                      
                         SetParent(form1.Handle, progmanPtr);
                         form1.Show();
                     }
-                    //ShowWindow(_videoProcess.MainWindowHandle, SW_SHOWMAXIMIZED);
                     ShowWindow(_nativeWallpapaerPtr, SW_HIDE);
-                    //ShowWindow(_videoProcess.MainWindowHandle, SW_SHOW);
                 }
                 else
                 {
@@ -256,60 +310,68 @@ namespace Wallpaper
             System.Threading.Tasks.Task.Run(() =>
             {
                 Bitmap cacheBitmap = null;
+                videoUrl = Path.GetFullPath(videoUrl);
                 while (true)
                 {
-                    // decode all frames from url, please not it might local resorce, e.g. string url = "../../sample_mpeg4.mp4";
-                    //var url = "http://clips.vorwaerts-gmbh.de/big_buck_bunny.mp4"; // be advised this file holds 1440 frames
-                    using (var vsd = new VideoStreamDecoder(videoUrl, HWDevice))//""
+                    try
                     {
-                        Console.WriteLine($"codec name: {vsd.CodecName}");
-
-                        var info = vsd.GetContextInfo();
-                        info.ToList().ForEach(x => Console.WriteLine($"{x.Key} = {x.Value}"));
-
-                        var sourceSize = vsd.FrameSize;
-                        var sourcePixelFormat = vsd.PixelFormat;
-                        var screenBounds = Screen.PrimaryScreen.Bounds;
-                        var destinationSize = screenBounds.Size; // sourceSize;
-                        var destinationPixelFormat = AVPixelFormat.AV_PIX_FMT_BGR24;
-
-                        using (var vfc =new VideoFrameConverter(sourceSize, sourcePixelFormat, destinationSize, destinationPixelFormat))
+                        // decode all frames from url, please not it might local resorce, e.g. string url = "../../sample_mpeg4.mp4";
+                        //var url = "http://clips.vorwaerts-gmbh.de/big_buck_bunny.mp4"; // be advised this file holds 1440 frames
+                        using (var vsd = new VideoStreamDecoder(videoUrl, HWDevice))//""
                         {
-                            var frameNumber = 0;
-                            int waitTime = 1000 / 60;
-                            while (vsd.TryDecodeNextFrame(out var frame))
-                            {
-                                var convertedFrame = vfc.Convert(frame);
-                                var bitmap = new Bitmap(convertedFrame.width,
-                                    convertedFrame.height,
-                                    convertedFrame.linesize[0],
-                                    PixelFormat.Format24bppRgb,
-                                    (IntPtr)convertedFrame.data[0]);
+                            Console.WriteLine($"codec name: {vsd.CodecName}");
 
-                                if (cacheBitmap == null)
+                            var info = vsd.GetContextInfo();
+                            info.ToList().ForEach(x => Console.WriteLine($"{x.Key} = {x.Value}"));
+
+                            var sourceSize = vsd.FrameSize;
+                            var sourcePixelFormat = vsd.PixelFormat;
+                            var screenBounds = Screen.PrimaryScreen.Bounds;
+                            var destinationSize = screenBounds.Size; // sourceSize;
+                            var destinationPixelFormat = AVPixelFormat.AV_PIX_FMT_BGR24;
+
+                            using (var vfc = new VideoFrameConverter(sourceSize, sourcePixelFormat, destinationSize, destinationPixelFormat))
+                            {
+                                var frameNumber = 0;
+                                int waitTime = 1000 / 60;
+                                while (vsd.TryDecodeNextFrame(out var frame))
                                 {
-                                    string cacheName = ".cacheBitmap";
-                                    if (File.Exists(cacheName))
+                                    var convertedFrame = vfc.Convert(frame);
+                                    var bitmap = new Bitmap(convertedFrame.width,
+                                        convertedFrame.height,
+                                        convertedFrame.linesize[0],
+                                        PixelFormat.Format24bppRgb,
+                                        (IntPtr)convertedFrame.data[0]);
+
+                                    if (cacheBitmap == null)
                                     {
-                                        File.Delete(cacheName);
+                                        string cachePath =Path.Combine(UserPath, ".cacheBitmap");
+                                        if (File.Exists(cachePath))
+                                        {
+                                            File.Delete(cachePath);
+                                        }
+                                        bitmap.Save(cachePath, ImageFormat.Jpeg);
+                                        cacheBitmap = new Bitmap(cachePath);
                                     }
-                                    bitmap.Save(cacheName, ImageFormat.Jpeg);
-                                    cacheBitmap = new Bitmap(cacheName);
+
+                                    onBitmapCallback(bitmap);
+
+                                    Thread.Sleep(waitTime);
+                                    Console.WriteLine($"frame: {frameNumber}");
+                                    frameNumber++;
                                 }
 
-                                onBitmapCallback(bitmap);
-
-                                Thread.Sleep(waitTime);
-                                Console.WriteLine($"frame: {frameNumber}");
-                                frameNumber++;
+                                onBitmapCallback(cacheBitmap);
                             }
-
-                            onBitmapCallback(cacheBitmap);
+                        }
+                        if (!loop)
+                        {
+                            break;
                         }
                     }
-                    if (!loop)
+                    catch (Exception e)
                     {
-                        break;
+                        throw e;
                     }
                 }
             });

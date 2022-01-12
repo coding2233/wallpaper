@@ -18,6 +18,7 @@ namespace Wallpaper
     class Program
     {
         private static IntPtr _nativeWallpapaerPtr;
+        private static Process _exeProcess;
 
         #region path
 
@@ -172,7 +173,7 @@ namespace Wallpaper
             AddNotifyIconItem(contextMenuStrip, "Select wallpaper", (sender, e) =>
             {
                 OpenFileDialog openFileDialog = new OpenFileDialog();
-                openFileDialog.Filter = "Video files|*.*";
+                openFileDialog.Filter = "Video files|*.*|Exe files|*.exe";
                 openFileDialog.FilterIndex = 1;
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
@@ -206,7 +207,7 @@ namespace Wallpaper
             }
             else
             {
-                notifyIcon.ShowBalloonTip(2000, "Select video", "Please select a video file as wallpaper.", ToolTipIcon.Info);
+                notifyIcon.ShowBalloonTip(2000, "Select wallpaper", "Please select a video file or exe program as wallpaper.", ToolTipIcon.Info);
             }
 
             Application.Run();
@@ -222,39 +223,26 @@ namespace Wallpaper
                 EnumWindows(EnumWindowProc, 0);
                 if (_nativeWallpapaerPtr != IntPtr.Zero)
                 {
-                    bool isShowForms = false;
-                    List<Form1> forms = new List<Form1>();
-                    foreach (var item in Screen.AllScreens)
-                    {
-                        Form1 form1 = new Form1();
 
-                        form1.Bounds = item.Bounds;
-                        //form1.Location = item.Bounds.Location;
-                        //form1.Size = item.Bounds.Size;
-                        forms.Add(form1);
-                    }
-                    //ffmpeg
-                    ffmpeg.RootPath = Path.GetDirectoryName(Application.ExecutablePath);
-                    //http://ivi.bupt.edu.cn/hls/cctv6hd.m3u8 
-                    //./wallpaper_ffplay_video.mp4
-                    DecodeAllFramesToImages(wallpaperAddress, AVHWDeviceType.AV_HWDEVICE_TYPE_NONE, (bitmap) => {
-                        foreach (var item in forms)
+                    //var child = FindWindowEx(progmanPtr,IntPtr.Zero, "UnityWndClass", 0);
+                    //SetParent(child, IntPtr.Zero);
+                    try
+                    {
+                        if (wallpaperAddress.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                         {
-                            item.SetImage(bitmap);
-                            isShowForms = true;
+                            RunExe(wallpaperAddress, progmanPtr);
                         }
-                    },true);
-
-                    while (!isShowForms)
-                    {
-                        Thread.Sleep(100);
+                        else
+                        {
+                            PlayVideo(wallpaperAddress, progmanPtr);
+                        }
+                        ShowWindow(_nativeWallpapaerPtr, SW_HIDE);
                     }
-                    foreach (var form1 in forms)
+                    catch (Exception e)
                     {
-                        SetParent(form1.Handle, progmanPtr);
-                        form1.Show();
+                        Console.WriteLine(e);
+                        SetWallpaperBack();
                     }
-                    ShowWindow(_nativeWallpapaerPtr, SW_HIDE);
                 }
                 else
                 {
@@ -266,6 +254,12 @@ namespace Wallpaper
 
         private static void SetWallpaperBack()
         {
+            if (_exeProcess != null)
+            {
+                _exeProcess.Kill();
+                _exeProcess = null;
+            }
+
             if (_nativeWallpapaerPtr != IntPtr.Zero)
             {
                 ShowWindow(_nativeWallpapaerPtr, SW_SHOW);
@@ -385,8 +379,54 @@ namespace Wallpaper
             return item;
         }
 
+        private static void PlayVideo(string wallpaperAddress,IntPtr progmanPtr)
+        {
+            bool isShowForms = false;
+            List<Form1> forms = new List<Form1>();
+            foreach (var item in Screen.AllScreens)
+            {
+                Form1 form1 = new Form1();
 
-       
+                form1.Bounds = item.Bounds;
+                //form1.Location = item.Bounds.Location;
+                //form1.Size = item.Bounds.Size;
+                forms.Add(form1);
+            }
+            //ffmpeg
+            ffmpeg.RootPath = Path.GetDirectoryName(Application.ExecutablePath);
+            //http://ivi.bupt.edu.cn/hls/cctv6hd.m3u8 
+            //./wallpaper_ffplay_video.mp4
+            DecodeAllFramesToImages(wallpaperAddress, AVHWDeviceType.AV_HWDEVICE_TYPE_NONE, (bitmap) => {
+                foreach (var item in forms)
+                {
+                    item.SetImage(bitmap);
+                    isShowForms = true;
+                }
+            }, true);
+
+            while (!isShowForms)
+            {
+                Thread.Sleep(100);
+            }
+            foreach (var form1 in forms)
+            {
+                SetParent(form1.Handle, progmanPtr);
+                form1.Show();
+            }
+        }
+
+        private static void RunExe(string wallpaperAddress, IntPtr progmanPtr)
+        {
+            _exeProcess = new Process();
+            _exeProcess.StartInfo.FileName = wallpaperAddress;
+            _exeProcess.StartInfo.UseShellExecute = true;
+            _exeProcess.StartInfo.CreateNoWindow = true;
+            _exeProcess.StartInfo.WindowStyle = ProcessWindowStyle.Minimized;
+            _exeProcess.Start();
+            Thread.Sleep(3000);
+            SetParent(_exeProcess.MainWindowHandle, progmanPtr);
+            ShowWindow(_exeProcess.MainWindowHandle,SW_SHOW);
+        }
 
         #region user32.dll
         delegate bool WindowEnumProc(IntPtr hwnd, long lparam);

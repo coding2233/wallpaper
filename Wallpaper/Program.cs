@@ -11,6 +11,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Wallpaper
@@ -19,7 +20,8 @@ namespace Wallpaper
     {
         private static IntPtr _nativeWallpapaerPtr;
         private static Process _exeProcess;
-
+        private static List<Form1> _form1s;
+        private static HashSet<string> _videoTask = new HashSet<string>();
         #region path
 
         private static string UserPath
@@ -179,15 +181,18 @@ namespace Wallpaper
                 {
                     string oldWallpaperAddress = WallpaperAddress;
                     WallpaperAddress = openFileDialog.FileName;
-                    if (string.IsNullOrEmpty(oldWallpaperAddress))
+                    if (WallpaperAddress.Equals(oldWallpaperAddress))
                     {
-                        SetWallpaper(WallpaperAddress);
-                        notifyIcon.ShowBalloonTip(500, "Update wallpap", "Wallpaper setup successfully.", ToolTipIcon.Info);
+                        return;
                     }
-                    else
+                    if (!string.IsNullOrEmpty(oldWallpaperAddress))
                     {
-                        notifyIcon.ShowBalloonTip(1000, "Update wallpap", "Exit and restart the application.",ToolTipIcon.Info);
+                        if (_videoTask.Contains(oldWallpaperAddress))
+                            _videoTask.Remove(oldWallpaperAddress);
+                        SetWallpaperBack();
                     }
+                    SetWallpaper(WallpaperAddress);
+                    notifyIcon.ShowBalloonTip(500, "Update wallpap", "Wallpaper setup successfully.", ToolTipIcon.Info);
                 }
             });
             AddNotifyIconItem(contextMenuStrip, "Exit", (sender, e) =>
@@ -260,6 +265,16 @@ namespace Wallpaper
                 _exeProcess = null;
             }
 
+            if (_form1s != null)
+            {
+                while (_form1s.Count > 0)
+                {
+                    var form = _form1s[0];
+                    _form1s.RemoveAt(0);
+                    form.Close();
+                }
+            }
+
             if (_nativeWallpapaerPtr != IntPtr.Zero)
             {
                 ShowWindow(_nativeWallpapaerPtr, SW_SHOW);
@@ -299,13 +314,14 @@ namespace Wallpaper
             return true;
         }
 
-        private static unsafe void DecodeAllFramesToImages(string videoUrl,AVHWDeviceType HWDevice,Action<Bitmap> onBitmapCallback,bool loop=false)
+        private static unsafe Task DecodeAllFramesToImages(string videoUrl,AVHWDeviceType HWDevice,Action<Bitmap> onBitmapCallback,bool loop=false)
         {
-            System.Threading.Tasks.Task.Run(() =>
+            return System.Threading.Tasks.Task.Run(() =>
             {
                 Bitmap cacheBitmap = null;
+                string videoAddress = videoUrl;
                 videoUrl = Path.GetFullPath(videoUrl);
-                while (true)
+                while (_videoTask.Contains(videoAddress))
                 {
                     try
                     {
@@ -328,7 +344,7 @@ namespace Wallpaper
                             {
                                 var frameNumber = 0;
                                 int waitTime = 1000 / 60;
-                                while (vsd.TryDecodeNextFrame(out var frame))
+                                while (_videoTask.Contains(videoAddress)&&vsd.TryDecodeNextFrame(out var frame))
                                 {
                                     var convertedFrame = vfc.Convert(frame);
                                     var bitmap = new Bitmap(convertedFrame.width,
@@ -339,7 +355,7 @@ namespace Wallpaper
 
                                     if (cacheBitmap == null)
                                     {
-                                        string cachePath =Path.Combine(UserPath, ".cacheBitmap");
+                                        string cachePath =Path.Combine(UserPath, $"{Path.GetFileName(videoUrl)}.cacheBitmap");
                                         if (File.Exists(cachePath))
                                         {
                                             File.Delete(cachePath);
@@ -392,10 +408,12 @@ namespace Wallpaper
                 //form1.Size = item.Bounds.Size;
                 forms.Add(form1);
             }
+            _form1s = forms;
             //ffmpeg
             ffmpeg.RootPath = Path.GetDirectoryName(Application.ExecutablePath);
             //http://ivi.bupt.edu.cn/hls/cctv6hd.m3u8 
             //./wallpaper_ffplay_video.mp4
+            _videoTask.Add(wallpaperAddress);
             DecodeAllFramesToImages(wallpaperAddress, AVHWDeviceType.AV_HWDEVICE_TYPE_NONE, (bitmap) => {
                 foreach (var item in forms)
                 {

@@ -228,7 +228,6 @@ namespace Wallpaper
                 EnumWindows(EnumWindowProc, 0);
                 if (_nativeWallpapaerPtr != IntPtr.Zero)
                 {
-
                     //var child = FindWindowEx(progmanPtr,IntPtr.Zero, "UnityWndClass", 0);
                     //SetParent(child, IntPtr.Zero);
                     try
@@ -441,9 +440,12 @@ namespace Wallpaper
             _exeProcess.StartInfo.CreateNoWindow = true;
             _exeProcess.StartInfo.WindowStyle = ProcessWindowStyle.Minimized;
             _exeProcess.Start();
-            Thread.Sleep(3000);
+            Thread.Sleep(2000);
             SetParent(_exeProcess.MainWindowHandle, progmanPtr);
-            ShowWindow(_exeProcess.MainWindowHandle,SW_SHOW);
+            SetWindowLong(_exeProcess.MainWindowHandle, GWL_STYLE,WS_BORDER);
+            ShowWindow(_exeProcess.MainWindowHandle, SW_SHOWMAXIMIZED);
+            var screenBounds = Screen.PrimaryScreen.Bounds;
+            SetWindowPos(_exeProcess.MainWindowHandle, IntPtr.Zero, screenBounds.X-10, screenBounds.Y-10, screenBounds.Width, screenBounds.Height, 0x0040);
         }
 
         #region user32.dll
@@ -467,7 +469,10 @@ namespace Wallpaper
         [DllImport("user32.dll")]
         static extern long SetWindowLong(IntPtr hwnd, int nIndex, long dwNewLong);
         [DllImport("user32.dll", EntryPoint = "SendMessageA")]
-        public static extern int SendMessage(IntPtr hwnd, int wMsg, IntPtr wParam, IntPtr lParam);
+        static extern int SendMessage(IntPtr hwnd, int wMsg, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll")]
+        static extern bool SetWindowPos(IntPtr hwnd,IntPtr hWndInsertAfter,int x,int y,int width,int height,uint flag);
+
         #region ShowWindow 方法窗体状态的参数枚举
         /// <summary>
         /// 隐藏窗口并激活其他窗口

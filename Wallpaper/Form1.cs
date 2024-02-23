@@ -31,10 +31,20 @@ namespace Wallpaper
             this.pictureBox1.Image = bitmap;
         }
 
-        private void Form1_SizeChanged(object sender, EventArgs e)
+        public void SetPictureSize(Size size)
         {
-            this.pictureBox1.Size = this.Size;
+            this.pictureBox1.Size = size;
+		}
+
+        public void SetPictureScale(float width,float height)
+        {
+            this.pictureBox1.Scale(new SizeF(width, height));
         }
+
+		private void Form1_SizeChanged(object sender, EventArgs e)
+        {
+            SetPictureSize(this.Size);
+		}
 
         ///// <summary>
         ///// 设置程序开机启动

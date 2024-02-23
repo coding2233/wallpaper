@@ -313,14 +313,15 @@ namespace Wallpaper
             return true;
         }
 
-        private static unsafe Task DecodeAllFramesToImages(string videoUrl,AVHWDeviceType HWDevice,Action<Bitmap> onBitmapCallback,bool loop=false)
+        private static unsafe Task DecodeAllFramesToImages(string videoUrl,AVHWDeviceType HWDevice,Action<Bitmap,Size> onBitmapCallback,bool loop=false)
         {
             return System.Threading.Tasks.Task.Run(() =>
             {
                 Bitmap cacheBitmap = null;
                 string videoAddress = videoUrl;
                 videoUrl = Path.GetFullPath(videoUrl);
-                while (_videoTask.Contains(videoAddress))
+				int waitTime = 1000 / 60;
+				while (_videoTask.Contains(videoAddress))
                 {
                     try
                     {
@@ -336,13 +337,12 @@ namespace Wallpaper
                             var sourceSize = vsd.FrameSize;
                             var sourcePixelFormat = vsd.PixelFormat;
                             var screenBounds = Screen.PrimaryScreen.Bounds;
-                            var destinationSize = screenBounds.Size; // sourceSize;
+                            var destinationSize = screenBounds.Size; //screenBounds.Size; 
                             var destinationPixelFormat = AVPixelFormat.AV_PIX_FMT_BGR24;
 
                             using (var vfc = new VideoFrameConverter(sourceSize, sourcePixelFormat, destinationSize, destinationPixelFormat))
                             {
                                 var frameNumber = 0;
-                                int waitTime = 1000 / 60;
                                 while (_videoTask.Contains(videoAddress)&&vsd.TryDecodeNextFrame(out var frame))
                                 {
                                     var convertedFrame = vfc.Convert(frame);
@@ -363,14 +363,14 @@ namespace Wallpaper
                                         cacheBitmap = new Bitmap(cachePath);
                                     }
 
-                                    onBitmapCallback(bitmap);
+                                    onBitmapCallback(bitmap, sourceSize);
 
                                     Thread.Sleep(waitTime);
                                     Console.WriteLine($"frame: {frameNumber}");
                                     frameNumber++;
                                 }
 
-                                onBitmapCallback(cacheBitmap);
+                                onBitmapCallback(cacheBitmap, sourceSize);
                             }
                         }
                         if (!loop)
@@ -398,38 +398,46 @@ namespace Wallpaper
         {
             bool isShowForms = false;
             List<Form1> forms = new List<Form1>();
+            List<Rectangle> boundsList = new List<Rectangle>();
             foreach (var item in Screen.AllScreens)
             {
                 Form1 form1 = new Form1();
+                form1.Name = $"WallPaper {item.DeviceName}";
 
-                form1.Bounds = item.Bounds;
-                //form1.Location = item.Bounds.Location;
+				form1.Bounds = item.Bounds;
                 //form1.Size = item.Bounds.Size;
                 forms.Add(form1);
-            }
+
+                boundsList.Add(item.Bounds);
+			}
             _form1s = forms;
             //ffmpeg
             ffmpeg.RootPath = Path.GetDirectoryName(Application.ExecutablePath);
             //http://ivi.bupt.edu.cn/hls/cctv6hd.m3u8 
             //./wallpaper_ffplay_video.mp4
             _videoTask.Add(wallpaperAddress);
-            DecodeAllFramesToImages(wallpaperAddress, AVHWDeviceType.AV_HWDEVICE_TYPE_NONE, (bitmap) => {
+
+            DecodeAllFramesToImages(wallpaperAddress, AVHWDeviceType.AV_HWDEVICE_TYPE_NONE, (bitmap, size) =>
+            {
                 foreach (var item in forms)
                 {
                     item.SetImage(bitmap);
                     isShowForms = true;
-                }
+				}
             }, true);
 
             while (!isShowForms)
             {
                 Thread.Sleep(100);
             }
-            foreach (var form1 in forms)
+
+            for (int i = 0; i < forms.Count; i++)
             {
-                SetParent(form1.Handle, progmanPtr);
-                form1.Show();
-            }
+                var form1 = forms[i];
+				SetParent(form1.Handle, progmanPtr);
+                var bounds = boundsList[i];
+				form1.Show();
+			}
         }
 
         private static void RunExe(string wallpaperAddress, IntPtr progmanPtr)
